@@ -1,0 +1,52 @@
+{
+    "debug": {
+        "log": {
+            "print_after_n_batches": 50,
+            "print_metrics": true
+        }
+    },
+    "experiment": {
+        "experiments_path": "./experiments",
+        "name": "ARNe",
+        "checkpoint": {
+            "load": false,
+            "timestamp": null
+        }
+    },
+    "optimisation": {
+        "learning_rate_decay": {
+            "use": true,
+            "rate": 0.5
+        },
+        "ema": {
+            "decay_parameter": 0.999,
+            "use_ema": false
+        },
+        "optimiser": {
+            "learning_rate": 0.0001,
+            "momentum": 0.5,
+            "type": "Adam"
+        }
+    },
+    "dataset": {
+        "npz_path": "./data/neutral/npz",
+        "pt_path": "./data/neutral/pt",
+        "set_train": "train",
+        "set_val": "val",
+        "dataloader": {
+            "num_workers": 0,
+            "pin_memory": true,
+            "shuffle": true,
+            "batch_size": 64
+        }
+    },
+    "model": {
+        "n_epochs": 200,
+        "save": true,
+        "train": true,
+        "val": true
+    },
+    "visualisation": {
+        "use_tensorboardX": true
+    }
+}
