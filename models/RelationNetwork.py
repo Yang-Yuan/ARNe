@@ -4,7 +4,7 @@ import torch.nn as nn
 class RelationNetwork(nn.Module):
     def __init__(self, embedding_size, n_features, theta_dim, n_labels, triples=False, both=False,
                  classifier_extra_layers=0, ctx_only=False):
-        super(Relation_Network, self).__init__()
+        super(RelationNetwork, self).__init__()
 
         self.ctx_only = ctx_only
 
