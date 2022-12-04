@@ -1,69 +1,39 @@
-import os
+import os.path
+
+import numpy as np
 import torch
-from torch.utils import data
-
-from enum import Enum
-
-class PGMType(Enum):
-	train = "train"
-	val = "val"
-	test = "test"
+from torch.utils.data import Dataset
+from glob import glob
 
 
+class PGM(Dataset):
 
-class PGM(data.Dataset):
-	def __init__(self, pgmtype, data_path):
+    def __init__(self, split = "train", dir_path = "."):
+        self.filenames = [f.replace("\\", "/") for f in glob(os.path.join(dir_path, "*", "*.npz")) if split in f]
+        print(self.filenames)
 
-		if pgmtype not in list(PGMType):
-			raise ValueError("No such PGM type: %s" % pgmtype)
+    def __len__(self):
+        return len(self.filenames)
 
-		self.data_path = data_path
+    def __getitem__(self, index):
+        path = self.filenames[index]
+        data = np.load(path)
+        image = data.get("image").reshape(16, 160, 160)
+        image = torch.from_numpy(image)
+        target = data.get("target")
+        target = torch.from_numpy(target)
+        meta_target = data.get("meta_target")
+        meta_target = torch.from_numpy(meta_target)
+        return image, target, meta_target, index + 1
 
-		base_file_name = "_PGM_neutral_" + pgmtype.value + "_{}.pt"
+    @staticmethod
+    def cast_data(images, target, meta_target):
+        target = target.long()
+        meta_target = meta_target.float()
 
-		if not isinstance(pgmtype, PGMType):
-			raise ValueError("Please use PGMType")
+        images = images.float()
 
-		self.pgmtype = pgmtype
+        images_context = images[:, :8, :, :, ]
+        images_choices = images[:, 8:, :, :, ]
 
-
-		self.image_file = os.path.join(self.data_path, "image" + base_file_name)
-		self.target_file = os.path.join(self.data_path, "target" + base_file_name)
-		self.meta_target_file = os.path.join(self.data_path, "meta_target" + base_file_name)
-
-
-	def __len__(self):
-		if self.pgmtype == PGMType.train:
-			return 1200000
-
-
-		elif self.pgmtype == PGMType.val:
-			return 20000
-
-
-		elif self.pgmtype == PGMType.test:
-			return 200000
-
-
-	def __getitem__(self, idx):
-
-		idx += 1
-
-		images = torch.load(self.image_file.format(idx))
-		meta_target = torch.load(self.meta_target_file.format(idx))
-		target = torch.load(self.target_file.format(idx))
-
-		return images, target, meta_target, idx
-
-	@staticmethod
-	def cast_data(images, target, meta_target):
-		target = target.long()
-		meta_target = meta_target.float()
-
-		batch_size = images.shape[0]
-		images = images.float()
-
-		images_context = images[:, :8, :, :, ]
-		images_choices = images[:, 8:, :, :, ]
-
-		return images_context, images_choices, target, meta_target
+        return images_context, images_choices, target, meta_target

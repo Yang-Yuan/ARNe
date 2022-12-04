@@ -1,27 +1,25 @@
 import torch
 import torch.nn as nn
 
-
 from .RelationNetwork import RelationNetwork
 from .FiLM import FiLMBlock
 from .WReNTransformer import WReNTransformer
 
+
 class WReN(nn.Module):
     def __init__(self,
-                 use_film=False,
-                 n_film_layers=0,
-                 triples=False,
-                 both=False,
-                 beta=10,
-                 film_cnn=False,
-                 classifier_extra_layers=0,
-                 embedding_siz=256,
-                 ctx_only=False,
-                 config_transformer=None,
-                 use_delimiter=False,
-                 old_transformer_model=False,
-                 theta_dim=512
-                 ):
+                 use_film = False,
+                 n_film_layers = 2,
+                 triples = False,
+                 both = False,
+                 film_cnn = False,
+                 classifier_extra_layers = 0,
+                 embedding_siz = 256,
+                 ctx_only = False,
+                 config_transformer = None,
+                 use_delimiter = True,
+                 old_transformer_model = False,
+                 theta_dim = 512):
 
         super(WReN, self).__init__()
 
@@ -41,8 +39,8 @@ class WReN(nn.Module):
         self.n_context = 8
         self.n_choices = 8
 
-        self.labels_context = nn.Parameter(torch.zeros(self.n_context, 9), requires_grad=False)
-        self.labels_choices = nn.Parameter(torch.zeros(self.n_choices, 9), requires_grad=False)
+        self.labels_context = nn.Parameter(torch.zeros(self.n_context, 9), requires_grad = False)
+        self.labels_choices = nn.Parameter(torch.zeros(self.n_choices, 9), requires_grad = False)
 
         self.size_aux_data = 12
         self.out_dim_choice = 1
@@ -55,24 +53,18 @@ class WReN(nn.Module):
 
         self.h = 160
         self.w = 160
-
-        # cnn
-        stride = 2
-        kernel_size = (3, 3)
-        padding = int((kernel_size[0] - 1) / 2.)
         self.out_channels = 32
-        channels = [1] + [self.out_channels for i in range(4)]
 
-        # h_out = h_in/2, w_out = w_in/2
-        self.cnn = nn.Sequential(*[layer for i in range(len(channels) - 1)
-                                   for layer in [
-                                       nn.Conv2d(in_channels=channels[i], out_channels=channels[i + 1], stride=stride,
-                                                 padding=padding, kernel_size=kernel_size),
-                                       nn.BatchNorm2d(num_features=channels[i + 1]),
-                                       nn.ReLU(),
-                                   ]
-                                   ]
-                                 )
+        # cnn, h_out = h_in/2, w_out = w_in/2 per layer
+        num_cnn_layer = 4
+        kernel_size = 3
+        stride = 2
+        padding = int((kernel_size - 1) / 2)
+        channels = [1] + [self.out_channels] * num_cnn_layer
+        self.cnn = nn.Sequential(*[layer for i in range(len(channels) - 1) for layer in
+                                   [nn.Conv2d(channels[i], channels[i + 1], kernel_size, stride, padding),
+                                    nn.BatchNorm2d(channels[i + 1]),
+                                    nn.ReLU()]])
 
         if self.use_transformer:
             self.embedding_size = config_transformer["d_model"]
@@ -81,8 +73,10 @@ class WReN(nn.Module):
             self.embedding_size = embedding_siz
 
         # + 1 --> panel tagging
-        self.RNN_embedding = nn.Linear(in_features=int(self.h / 2 ** 4) * int(self.w / 2 ** 4) * self.out_channels + 9,
-                                       out_features=self.embedding_size)
+        downsize_by = stride ** num_cnn_layer
+        self.RNN_embedding = nn.Linear(
+            in_features = int(self.h / downsize_by) * int(self.w / downsize_by) * self.out_channels + 9,
+            out_features = self.embedding_size)
 
         # Relation Network
         self.theta_dim = theta_dim
@@ -97,52 +91,51 @@ class WReN(nn.Module):
             self.dim_film = self.n_choices * self.out_dim_choice
 
             self.film_layers = nn.Sequential(
-                *[FiLMBlock(self.size_aux_data, self.dim_film, self.dim_film) for i in range(n_film_layers)])
+                *[FiLMBlock(self.size_aux_data, self.dim_film, self.dim_film, cnn_mode = False, wren = False) for i in range(n_film_layers)])
 
             self.film_classifier = nn.Sequential(*[
-                nn.Dropout(p=0.2),
-                nn.Linear(in_features=self.dim_film, out_features=int(self.dim_film / 2.)),
+                nn.Dropout(p = 0.2),
+                nn.Linear(in_features = self.dim_film, out_features = int(self.dim_film / 2.)),
                 nn.ReLU(),
-                nn.Linear(in_features=int(self.dim_film / 2.), out_features=8)
+                nn.Linear(in_features = int(self.dim_film / 2.), out_features = 8)
             ])
 
         if self.film_cnn:
             self.film_cnn_layers = nn.Sequential(
-                *[FiLMBlock(self.size_aux_data, self.out_channels, self.out_channels, cnn_mode=True, wren=True) for i in
+                *[FiLMBlock(self.size_aux_data, self.out_channels, self.out_channels, cnn_mode = True, wren = True) for
+                  i in
                   range(1)])
 
         if config_transformer is not None:
             print("USING TRANSFORMER")
 
             if self.use_delimiter:
-                self.delimiter = nn.Parameter(torch.randn(config_transformer["d_model"]), requires_grad=True)
+                self.delimiter = nn.Parameter(torch.randn(config_transformer["d_model"]), requires_grad = True)
 
-            self.transformer = WReNTransformer(config_transformer, self.n_context + 1, use_delimiter=use_delimiter,
-                                                old_transformer_model=old_transformer_model)
-
-
+            self.transformer = WReNTransformer(config_transformer, self.n_context + 1, use_delimiter = use_delimiter,
+                                               old_transformer_model = old_transformer_model)
         else:
             self.RN = RelationNetwork(self.embedding_size, self.n_context + 1, self.theta_dim, self.n_labels,
-                                       triples=triples, both=both, classifier_extra_layers=classifier_extra_layers,
-                                       ctx_only=ctx_only)
+                                      triples = triples, both = both, classifier_extra_layers = classifier_extra_layers,
+                                      ctx_only = ctx_only)
 
-    def get_panel_embeddings_stack(self, context, choices, meta_targets=None):
+    def get_panel_embeddings_stack(self, context, choices, meta_targets = None):
         # HAVE TO DO THIS DYNAMIC
         batch_size = context.shape[0]
         labels_context = self.labels_context.repeat(batch_size, 1)
         labels_choices = self.labels_choices.repeat(batch_size, 1)
 
-        labels = torch.cat((labels_context, labels_choices), dim=0)
+        labels = torch.cat((labels_context, labels_choices), dim = 0)
 
         assert self.n_context == self.n_choices
 
         context_choices = torch.cat((context.reshape(batch_size * self.n_context, 1, self.h, self.w),
-                                     choices.reshape(batch_size * self.n_context, 1, self.h, self.w)), dim=0)
+                                     choices.reshape(batch_size * self.n_context, 1, self.h, self.w)), dim = 0)
         assert tuple(context_choices.size()) == (batch_size * 2 * self.n_context, 1, self.h, self.w)
 
         panel_features = self.cnn(context_choices)
         assert tuple(panel_features.size()) == (
-        batch_size * 2 * self.n_context, self.out_channels, int(self.h / 2 ** 4), int(self.w / 2 ** 4))
+            batch_size * 2 * self.n_context, self.out_channels, int(self.h / 2 ** 4), int(self.w / 2 ** 4))
 
         if self.film_cnn:
             filmed_params = self.film_cnn_layers({"aux": meta_targets, "input": panel_features})
@@ -152,9 +145,9 @@ class WReN(nn.Module):
 
         panel_features = panel_features.reshape(batch_size * 2 * self.n_context, -1)
         assert tuple(panel_features.size()) == (
-        batch_size * 2 * self.n_context, int(self.h / 2 ** 4) * int(self.w / 2 ** 4) * self.out_channels)
+            batch_size * 2 * self.n_context, int(self.h / 2 ** 4) * int(self.w / 2 ** 4) * self.out_channels)
 
-        panel_features = torch.cat((panel_features, labels), dim=1)
+        panel_features = torch.cat((panel_features, labels), dim = 1)
 
         assert tuple(panel_features.size()) == (
             batch_size * 2 * self.n_context,
@@ -170,7 +163,7 @@ class WReN(nn.Module):
 
         return context, choices
 
-    def get_panel_embeddings(self, panels, label=None):
+    def get_panel_embeddings(self, panels, label = None):
 
         if label is not None:
             panel_label = torch.zeros(self.batch_size, panels.shape[1] + 1)
@@ -188,12 +181,12 @@ class WReN(nn.Module):
             # create feature maps and put them all in one dimension
             panel_features = self.cnn(panel)
             assert tuple(panel_features.size()) == (
-            self.batch_size, self.out_channels, int(self.h / 2 ** 4), int(self.w / 2 ** 4))
+                self.batch_size, self.out_channels, int(self.h / 2 ** 4), int(self.w / 2 ** 4))
 
             # prepare for linear layer
             panel_features = panel_features.reshape(self.batch_size, -1)
             assert tuple(panel_features.size()) == (
-            self.batch_size, int(self.h / 2 ** 4) * int(self.w / 2 ** 4) * self.out_channels)
+                self.batch_size, int(self.h / 2 ** 4) * int(self.w / 2 ** 4) * self.out_channels)
 
             # apply feature tagging to encode the position of each panel: paper: tags 1 - 9
 
@@ -205,7 +198,7 @@ class WReN(nn.Module):
 
                 panel_label[:, i] = 1
 
-            panel_features = torch.cat((panel_features, panel_label), dim=1)
+            panel_features = torch.cat((panel_features, panel_label), dim = 1)
 
             assert tuple(panel_features.size()) == (
                 self.batch_size, int(self.h / 2 ** 4) * int(self.w / 2 ** 4) * self.out_channels + 9)
@@ -219,13 +212,13 @@ class WReN(nn.Module):
                 panel_embeddings = panel_embedding
 
             else:
-                panel_embeddings = torch.cat((panel_embeddings, panel_embedding), dim=1)
+                panel_embeddings = torch.cat((panel_embeddings, panel_embedding), dim = 1)
 
         assert tuple(panel_embeddings.size()) == (self.batch_size, panels.shape[1], self.embedding_size)
 
         return panel_embeddings
 
-    def forward(self, images_context, images_choices, meta_targets=None):
+    def forward(self, images_context, images_choices, meta_targets = None):
         """
         images is a tensor holding n choices x 8 context + 1 choice panels with respect to their pixels. That is,
         (Batch, n choices, n context + 1 (choice panel), h, w).
@@ -253,18 +246,18 @@ class WReN(nn.Module):
             if self.use_delimiter:
                 chi = torch.cat((features_ctx,
                                  self.delimiter.unsqueeze(0).unsqueeze(1).repeat((self.batch_size, 1, 1), 0),
-                                 features_choices[:, choice, :].unsqueeze(1)), dim=1)
+                                 features_choices[:, choice, :].unsqueeze(1)), dim = 1)
 
                 assert tuple(chi.size()) == (self.batch_size, self.n_context + 2, self.embedding_size)
 
             else:
                 chi = torch.cat((features_ctx,
-                                 features_choices[:, choice, :].unsqueeze(1)), dim=1)
+                                 features_choices[:, choice, :].unsqueeze(1)), dim = 1)
 
                 assert tuple(chi.size()) == (self.batch_size, self.n_context + 1, self.embedding_size)
 
             if self.use_transformer:
-                logits = self.transformer(chi, i_iteration=choice)
+                logits = self.transformer(chi, i_iteration = choice)
 
             else:
                 logits = self.RN(chi)
@@ -290,7 +283,7 @@ class WReN(nn.Module):
                 logits_meta_targets = logits_meta_target
 
             else:
-                logits_targets = torch.cat((logits_targets, logits_target), dim=1)
+                logits_targets = torch.cat((logits_targets, logits_target), dim = 1)
                 logits_meta_targets += logits_meta_target
 
         assert tuple(logits_meta_targets.size()) == (self.batch_size, 12)

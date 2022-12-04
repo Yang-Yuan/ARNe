@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 from torch.utils import data
 
+
 class Learning_Rate_Scheduler:
 	def __init__(self, d_model, warm_up_steps, optimiser):
 		self.warm_up_steps = warm_up_steps
@@ -17,7 +18,8 @@ class Learning_Rate_Scheduler:
 
 	def update_lr(self):
 		self.current_step += 1
-		lr = self.lr_init * np.min([np.power(self.current_step, -0.5), self.current_step * np.power(self.warm_up_steps, -1.5)])
+		lr = self.lr_init * np.min(
+			[np.power(self.current_step, -0.5), self.current_step * np.power(self.warm_up_steps, -1.5)])
 
 		for param_group in self.optimiser.param_groups:
 			param_group['lr'] = lr
@@ -35,9 +37,9 @@ class Learning_Rate_Scheduler:
 
 class Early_Stopping:
 	"""
-	This algorithm is based on
-	https://www.deeplearningbook.org/contents/regularization.html p 244
-	"""
+    This algorithm is based on
+    https://www.deeplearningbook.org/contents/regularization.html p 244
+    """
 
 	def __init__(self, patience, timestamp, dirs):
 
@@ -55,7 +57,7 @@ class Early_Stopping:
 		self.timestamp = timestamp
 		self.dirs = dirs
 
-	def check(self, model, optimizer, ema, metrics, epoch, lr_scheduler=None):
+	def check(self, model, optimizer, ema, metrics, epoch, lr_scheduler = None):
 		val_acc = metrics.data["val"]["accuracies"]["targets"][epoch]
 
 		if self.j < self.p:
@@ -63,7 +65,8 @@ class Early_Stopping:
 				self.acc_best = val_acc
 				self.epoch_best = epoch
 
-				save_checkpoint(epoch, model, optimizer, metrics, self.dirs, self.timestamp, ema, lr_scheduler=lr_scheduler)
+				save_checkpoint(epoch, model, optimizer, metrics, self.dirs, self.timestamp, ema,
+								lr_scheduler = lr_scheduler)
 				self.j = 0
 			else:
 				self.j += 1
@@ -72,13 +75,14 @@ class Early_Stopping:
 
 		print(
 			"Early Stopping> best acc {} curr acc {} | j {} p {} | best epoch {}".format(self.acc_best, val_acc, self.j,
-			                                                                             self.p, self.epoch_best))
+																						 self.p, self.epoch_best))
 
 	def save_no_condition(self, model, optimizer, ema, metrics, epoch):
 		print("Saving Checkpoint")
 		save_checkpoint(epoch, model, optimizer, metrics, self.dirs, self.timestamp, ema)
 
-def restore(model, metrics, ema,  dirs, config, rename_model_layer = None, use_lr_scheduler=False):
+
+def restore(model, metrics, ema, dirs, config, rename_model_layer = None, use_lr_scheduler = False):
 	print("Restoring ...")
 	checkpoint = load_checkpoint(dirs["checkpoints"], config["experiment"]["checkpoint"]["timestamp"])
 
@@ -104,11 +108,12 @@ def restore(model, metrics, ema,  dirs, config, rename_model_layer = None, use_l
 	for name, parameter in model.named_parameters():
 		assert checkpoint["model_state_dict"][name].equal(parameter)
 
-	optimiser = torch.optim.Adam(model.parameters(), lr=config["optimisation"]["optimiser"]["learning_rate"])
+	optimiser = torch.optim.Adam(model.parameters(), lr = config["optimisation"]["optimiser"]["learning_rate"])
 	optimiser.load_state_dict(checkpoint["optimizer_state_dict"])
 
 	for key in optimiser.state_dict()["param_groups"][0].keys():
-		print("key {} {}".format(key, checkpoint["optimizer_state_dict"]["param_groups"][0][key] == optimiser.state_dict()["param_groups"][0][key]))
+		print("key {} {}".format(key, checkpoint["optimizer_state_dict"]["param_groups"][0][key] ==
+								 optimiser.state_dict()["param_groups"][0][key]))
 
 	metrics.load_data_dict(checkpoint["metrics"])
 
@@ -126,6 +131,7 @@ def restore(model, metrics, ema,  dirs, config, rename_model_layer = None, use_l
 	else:
 		return model, optimiser, ema, epoch_start, metrics
 
+
 def move_to_devices(model):
 	cuda_devices = torch.cuda.device_count()
 
@@ -139,25 +145,26 @@ def move_to_devices(model):
 
 	return model
 
+
 def create_timestamp():
 	"""
-	:return: String formatted time stamp of current time
-	"""
+    :return: String formatted time stamp of current time
+    """
 	return datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
 
 
 def create_dirs(timestamp, config):
 	"""
-	Creates directories of the experiments, checkpoints, logs, configs, and tensorboardX
-	:param timestamp: String formatted timestamp
-	:return: Dictionary of paths
-	"""
+    Creates directories of the experiments, checkpoints, logs, configs, and tensorboardX
+    :param timestamp: String formatted timestamp
+    :return: Dictionary of paths
+    """
 	paths = {}
 
 	path_experiment = os.path.join(config["experiment"]["experiments_path"], config["experiment"]["name"])
-	
+
 	paths["experiment"] = path_experiment
-	
+
 	# init
 	if not os.path.exists(path_experiment):
 		os.makedirs(paths["experiment"])
@@ -167,26 +174,25 @@ def create_dirs(timestamp, config):
 		path = os.path.join(paths["experiment"], key)
 		paths[key] = path
 
-
 		if (not (key == "tensorboardX")) or ((key == "tensorboardX") and config["visualisation"]["use_tensorboardX"]):
 			if not os.path.exists(path):
 				os.makedirs(paths[key])
 
 	return paths
 
-def load_config_file(config_file, string=False):
+
+def load_config_file(config_file, string = False):
 	"""
-	Loads the config file from disk given the parsed user input of the path of the configuration file
-	:param config_file: Path to the configuration file
-	:return: Loaded Config file as a dictionary.
-	"""
+    Loads the config file from disk given the parsed user input of the path of the configuration file
+    :param config_file: Path to the configuration file
+    :return: Loaded Config file as a dictionary.
+    """
 	assert config_file is not None
 
 	if type(config_file) == list:
 		config_file = config_file[0]
 
 	global config
-
 
 	if string:
 		config = json.loads(config_file)
@@ -195,19 +201,18 @@ def load_config_file(config_file, string=False):
 		print("loading config file {}".format(config_file))
 		with open(config_file, "r") as file:
 			config = json.load(file)
-	
 
 	return config
 
+
 def load_checkpoint(checkpoint_path, checkpoint_timestamp, checkpoint_name = "checkpoint-{}"):
 	"""
-	Loads a checkpoint from disk
-	:param checkpoint_path: Path of the checkpoint
-	:param checkpoint_timestamp: The timestamp of the checkpoint
-	:param checkpoint_name: Name of the checkpoint
-	:return: Loaded checkpoint
-	"""
-
+    Loads a checkpoint from disk
+    :param checkpoint_path: Path of the checkpoint
+    :param checkpoint_timestamp: The timestamp of the checkpoint
+    :param checkpoint_name: Name of the checkpoint
+    :return: Loaded checkpoint
+    """
 
 	# load from other experiment --> abs path to checkpoint
 	if os.path.isfile(checkpoint_timestamp):
@@ -221,10 +226,10 @@ def load_checkpoint(checkpoint_path, checkpoint_timestamp, checkpoint_name = "ch
 	n_cuda_devices = torch.cuda.device_count()
 
 	if n_cuda_devices == 0:
-		checkpoint = torch.load(checkpoint_path, map_location="cpu")
+		checkpoint = torch.load(checkpoint_path, map_location = "cpu")
 
 	elif n_cuda_devices == 1:
-		checkpoint = torch.load(checkpoint_path, map_location="cuda:0")
+		checkpoint = torch.load(checkpoint_path, map_location = "cuda:0")
 
 	else:
 		checkpoint = torch.load(checkpoint_path)
@@ -234,19 +239,19 @@ def load_checkpoint(checkpoint_path, checkpoint_timestamp, checkpoint_name = "ch
 	return checkpoint
 
 
-def save_checkpoint(epoch, model, optimizer, metrics, dirs, timestamp, ema, lr_scheduler=None):
+def save_checkpoint(epoch, model, optimizer, metrics, dirs, timestamp, ema, lr_scheduler = None):
 	"""
-	Saves data, including current epoch, state dict of model and optimiser and metrics,
-	as a dictionary to disk.
-	:param epoch: Current epoch
-	:param model: The current model
-	:param optimizer: The current optimiser
-	:param metrics: Global metrics dictionary
-	:param dirs: Dirs dictionary including the file path where to save the checkpoint
-	:param timestamp: String formatted timestamp of the current run
-	:param ema: EMA object or None
-	:return:
-	"""
+    Saves data, including current epoch, state dict of model and optimiser and metrics,
+    as a dictionary to disk.
+    :param epoch: Current epoch
+    :param model: The current model
+    :param optimizer: The current optimiser
+    :param metrics: Global metrics dictionary
+    :param dirs: Dirs dictionary including the file path where to save the checkpoint
+    :param timestamp: String formatted timestamp of the current run
+    :param ema: EMA object or None
+    :return:
+    """
 	print("Saving Checkpoint")
 
 	if type(model) == nn.DataParallel:
@@ -257,12 +262,12 @@ def save_checkpoint(epoch, model, optimizer, metrics, dirs, timestamp, ema, lr_s
 
 	# model_state_dict are the best model parameters so far at given epoch
 	checkpoint = {
-					'epoch': epoch,
-					'model_state_dict': model_state_dict,
-					'optimizer_state_dict': optimizer.state_dict(),
-					#'metrics': metrics,
-					'metrics' : metrics.data,
-				}
+		'epoch': epoch,
+		'model_state_dict': model_state_dict,
+		'optimizer_state_dict': optimizer.state_dict(),
+		# 'metrics': metrics,
+		'metrics': metrics.data,
+	}
 
 	if ema is not None:
 		checkpoint["ema"] = ema.get_ema_parameters()
@@ -291,7 +296,7 @@ def save_checkpoint(epoch, model, optimizer, metrics, dirs, timestamp, ema, lr_s
 	print("SAVE CHECKPOINT > PARAM CHECK OK")
 
 
-def get_dataloader(data_set, collate_fn = None, shuffle=None):
+def get_dataloader(data_set, collate_fn = None, shuffle = None):
 	"""
 	Creates a dataloader for a given data set.
 	:param data_set: Name of the dataset
@@ -303,56 +308,53 @@ def get_dataloader(data_set, collate_fn = None, shuffle=None):
 	if shuffle is None:
 		shuffle = config["dataset"]["dataloader"]["shuffle"]
 
-
 	if collate_fn is not None:
-		dataloader = data.DataLoader(	data_set, batch_size=config["dataset"]["dataloader"]["batch_size"],
-	                                            shuffle=shuffle,
-	                                            num_workers=config["dataset"]["dataloader"]["num_workers"],
-	                                            pin_memory=config["dataset"]["dataloader"]["pin_memory"],
-												collate_fn=collate_fn
-	                                        )
+		dataloader = data.DataLoader(data_set, batch_size = config["dataset"]["dataloader"]["batch_size"],
+									 shuffle = shuffle,
+									 num_workers = config["dataset"]["dataloader"]["num_workers"],
+									 pin_memory = config["dataset"]["dataloader"]["pin_memory"],
+									 collate_fn = collate_fn)
 	else:
-		dataloader = data.DataLoader(data_set, batch_size=config["dataset"]["dataloader"]["batch_size"],
-		                             shuffle=shuffle,
-		                             num_workers=config["dataset"]["dataloader"]["num_workers"],
-		                             pin_memory=config["dataset"]["dataloader"]["pin_memory"],
-		                             )
+		dataloader = data.DataLoader(data_set, batch_size = config["dataset"]["dataloader"]["batch_size"],
+									 shuffle = shuffle,
+									 num_workers = config["dataset"]["dataloader"]["num_workers"],
+									 pin_memory = config["dataset"]["dataloader"]["pin_memory"])
 
 	return dataloader
 
 
-
-def learning_rate_not_improved(curr_train_loss, prev_train_loss, curr_lr, thr_1=0.5, thr_2=0.15, thr_3=0.10):
+def learning_rate_not_improved(curr_train_loss, prev_train_loss, curr_lr, thr_1 = 0.5, thr_2 = 0.15, thr_3 = 0.10):
 	"""
-	Checks if learning rate has not changed after each epoch of training
+    Checks if learning rate has not changed after each epoch of training
 
-	:param curr_train_loss: The average loss of the whole epoch during training
-	:param prev_train_loss: The average loss of the previous training session
-	:param curr_lr: Current learning rate of the ADAM optimiser
-	:return: boolean if learning rate has not improved
-	"""
+    :param curr_train_loss: The average loss of the whole epoch during training
+    :param prev_train_loss: The average loss of the previous training session
+    :param curr_lr: Current learning rate of the ADAM optimiser
+    :return: boolean if learning rate has not improved
+    """
 
 	if prev_train_loss == None:
 		return False
 
 	loss_diff = np.abs(curr_train_loss - prev_train_loss)
 
-	not_improved =	((loss_diff < 0.015 and prev_train_loss < thr_1 and curr_lr > 0.00002) or \
+	not_improved = ((loss_diff < 0.015 and prev_train_loss < thr_1 and curr_lr > 0.00002) or \
 					(loss_diff < 0.008 and prev_train_loss < thr_2 and curr_lr > 0.00001) or \
 					(loss_diff < 0.003 and prev_train_loss < thr_3 and curr_lr > 0.000005))
 
 	return not_improved
 
-def check_LR(config, metrics, optimiser, i_epoch, thr_1=0.5, thr_2=0.15, thr_3=0.10):
-	"""
-	Checks if learning rate has not changed and updates it
 
-	:param config: The Configuration File
-	:param metrics: The global metrics dictionary
-	:param optimiser: Optimiser object holding the current learning rate
-	:param i_epoch: Current epoch
-	:return: updated global metrics dictionary
+def check_LR(config, metrics, optimiser, i_epoch, thr_1 = 0.5, thr_2 = 0.15, thr_3 = 0.10):
 	"""
+    Checks if learning rate has not changed and updates it
+
+    :param config: The Configuration File
+    :param metrics: The global metrics dictionary
+    :param optimiser: Optimiser object holding the current learning rate
+    :param i_epoch: Current epoch
+    :return: updated global metrics dictionary
+    """
 	# reduce learning rate if loss does not improve
 	if i_epoch > 1:
 		prev_train_loss = metrics.get_loss(i_epoch - 1, "train")
@@ -362,8 +364,9 @@ def check_LR(config, metrics, optimiser, i_epoch, thr_1=0.5, thr_2=0.15, thr_3=0
 		# during init
 		prev_train_loss = None
 
-	if config["optimisation"]["learning_rate_decay"]["use"] and learning_rate_not_improved(metrics.get_loss(i_epoch, "train"), prev_train_loss, optimiser.param_groups[0]["lr"], thr_1=thr_1, thr_2=thr_2, thr_3=thr_3):
-
+	if config["optimisation"]["learning_rate_decay"]["use"] and learning_rate_not_improved(
+			metrics.get_loss(i_epoch, "train"), prev_train_loss, optimiser.param_groups[0]["lr"], thr_1 = thr_1,
+			thr_2 = thr_2, thr_3 = thr_3):
 		prev_lr = optimiser.param_groups[0]["lr"]
 		lr_decay = optimiser.param_groups[0]["lr"] * config["optimisation"]["learning_rate_decay"]["rate"]
 
@@ -376,6 +379,5 @@ def check_LR(config, metrics, optimiser, i_epoch, thr_1=0.5, thr_2=0.15, thr_3=0
 
 
 def copy_config_file(config_file, dirs, timestamp):
-
 	with open(os.path.join(dirs["configs"], "config-{}".format(timestamp)), "w") as file:
 		json.dump(config_file, file)

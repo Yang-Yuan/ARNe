@@ -3,47 +3,42 @@ import argparse
 import torch
 import utility.functions as util
 from utility.Metrics import Metrics_WReN as Metrics
-from datasets import PGM, PGMType
+from datasets import PGM_PT, PGMType, PGM
 from optimisation.losses import WReN_Loss
 from models import WReN
 
 import os
 
-parser = argparse.ArgumentParser(description='Additional settings for loading, saving and configurations of ARNe')
-parser.add_argument('--load_checkpoint', type=str, nargs=1, metavar='TIMESTAMP',
-                    help='Timestamp of EXPERIMENT to load.')
+parser = argparse.ArgumentParser(description = 'Additional settings for loading, saving and configurations of ARNe')
+parser.add_argument('--load_checkpoint', type = str, nargs = 1, metavar = 'TIMESTAMP',
+                    help = 'Timestamp of EXPERIMENT to load.')
 
-
-
-parser.add_argument('--experiment', type=str, nargs=1, metavar='EXPERIMENT', help='Name of experiment.')
-
+parser.add_argument('--experiment', type = str, nargs = 1, metavar = 'EXPERIMENT', help = 'Name of experiment.')
 
 # transformer
-parser.add_argument("--transformer", action="store_true", help="use the encoder of the transformer instead of RNs")
-parser.add_argument("--d_model", type=int, help="input size of the model")
-parser.add_argument("--h", type=int, help="number of attention heads")
-parser.add_argument("--n_layers", type=int, help="length of the transformer encoder")
-parser.add_argument("--d_ff", type=int, help="length of the transformer encoder")
-parser.add_argument("--d_att", type=int, help="attention dimensions")
-parser.add_argument("--d_q_k", type=int, help="attention dimensions: query and key")
-parser.add_argument("--d_v", type=int, help="attention dimension: values")
+parser.add_argument("--transformer", action = "store_true", default = True,
+                    help = "use the encoder of the transformer instead of RNs")
+parser.add_argument("--d_model", type = int, default = 512, help = "input size of the model")
+parser.add_argument("--h", type = int, default = 10, help = "number of attention heads")
+parser.add_argument("--n_layers", type = int, default = 6, help = "length of the transformer encoder")
+parser.add_argument("--d_ff", type = int, help = "length of the transformer encoder")
+parser.add_argument("--d_att", type = int, default = 64, help = "attention dimensions")
+parser.add_argument("--d_q_k", type = int, help = "attention dimensions: query and key")
+parser.add_argument("--d_v", type = int, help = "attention dimension: values")
+parser.add_argument("--dropout_transformer", type = float, default = 0.1, help = "transformer dropout")
 
-parser.add_argument("--dropout_transformer", type=float, default=0.1, help="transformer dropout")
-
-parser.add_argument("--patience", type=int, default=3, help="early stopping patience")
-
-parser.add_argument('--lr', type=float, nargs=1, help='set a non default (json str below) learning rate')
-parser.add_argument("--lr_scheduler", action="store_true", help="use lr scheduler of the transformer")
-parser.add_argument('--warmup_steps', type=int, default=4000, help='set a non default warmup steps')
-
-
-parser.add_argument('--lr_restore_overwrite', action="store_true",
-                    help="apply learning rate decay directly after restoring")
-parser.add_argument("--lr_decay", type=float, help="apply lr decay")
-parser.add_argument('--lr_decay_threshold', type=float, help='set a non default thershold for lr decay')
-parser.add_argument("--only_loss_target", action="store_true",
-                    help="only consider the loss of targets. for ablations only")
-
+parser.add_argument("--patience", type = int, default = 3, help = "early stopping patience")
+parser.add_argument('--lr', type = float, default = 0.00005, nargs = 1,
+                    help = 'set a non default (json str below) learning rate')
+parser.add_argument("--lr_scheduler", action = "store_true", help = "use lr scheduler of the transformer")
+parser.add_argument('--warmup_steps', type = int, default = 4000, help = 'set a non default warmup steps')
+parser.add_argument('--lr_restore_overwrite', action = "store_true",
+                    help = "apply learning rate decay directly after restoring")
+parser.add_argument("--lr_decay", default = 0.75, type = float, help = "apply lr decay")
+parser.add_argument('--lr_decay_threshold', default = 0.6, type = float,
+                    help = 'set a non default thershold for lr decay')
+parser.add_argument("--only_loss_target", action = "store_true",
+                    help = "only consider the loss of targets. for ablations only")
 
 
 def main(args):
@@ -130,8 +125,7 @@ def main(args):
 
     config["experiment"]["name"] += "_dropout_" + str(args.dropout_transformer)
 
-
-    # optioonal name suffix
+    # optional name suffix
     if args.experiment is not None:
         config["experiment"]["name"] += "_" + args.experiment[0]
 
@@ -139,14 +133,15 @@ def main(args):
         config["experiment"]["checkpoint"]["load"] = True
         config["experiment"]["checkpoint"]["timestamp"] = args.load_checkpoint[0]
 
-
         config["experiment"]["name"] += "_classifier_extra_layers"
 
     if args.lr is not None:
-        config["experiment"]["name"] += "_lr_" + str(args.lr[0])
+        # config["experiment"]["name"] += "_lr_" + str(args.lr[0])
+        # print("USING CUSTOM LEARNING RATE")
+        # config["optimisation"]["optimiser"]["learning_rate"] = args.lr[0]
+        config["experiment"]["name"] += "_lr_" + str(args.lr)
         print("USING CUSTOM LEARNING RATE")
-        config["optimisation"]["optimiser"]["learning_rate"] = args.lr[0]
-
+        config["optimisation"]["optimiser"]["learning_rate"] = args.lr
 
     use_lr_decay = False
     if args.lr_decay is not None:
@@ -156,7 +151,6 @@ def main(args):
 
     if args.lr_restore_overwrite:
         config["experiment"]["name"] += "_lr_restore_overwrite_"
-
 
     lr_decay_threshold = 0.5
     if args.lr_decay_threshold is not None:
@@ -174,25 +168,25 @@ def main(args):
 
     print(config["experiment"]["name"])
 
-
     timestamp = util.create_timestamp()
     dirs = util.create_dirs(timestamp, config)
 
     util.copy_config_file(config, dirs, timestamp)
 
+    # dataloader_train = util.get_dataloader(PGM_PT(PGMType.train, config["dataset"]["data_path"]), None)
+    # dataloader_val = util.get_dataloader(PGM_PT(PGMType.val, config["dataset"]["data_path"]), None)
+    # dataloader_test = util.get_dataloader(PGM_PT(PGMType.test, config["dataset"]["data_path"]), None)
 
+    dataloader_train = util.get_dataloader(PGM("train", config["dataset"]["data_path"]), None)
+    dataloader_val = util.get_dataloader(PGM("val", config["dataset"]["data_path"]), None)
+    dataloader_test = util.get_dataloader(PGM("test", config["dataset"]["data_path"]), None)
 
-    dataloader_train = util.get_dataloader(PGM(PGMType.train, config["dataset"]["pt_path"]), None)
-    dataloader_val = util.get_dataloader(PGM(PGMType.val, config["dataset"]["pt_path"]), None)
-    dataloader_test = util.get_dataloader(PGM(PGMType.test, config["dataset"]["pt_path"]), None)
-
-    model = WReN(
-        config_transformer=config_transformer,
-    )
+    model = WReN(config_transformer = config_transformer) # use Transformer encoder
+    # model = WReN() # use RN
 
     model = util.move_to_devices(model)
 
-    criterion = WReN_Loss(beta=10)
+    criterion = WReN_Loss(beta = 10)
 
     metrics = Metrics(
         model,
@@ -201,8 +195,8 @@ def main(args):
         config["optimisation"]["optimiser"]["learning_rate"],
         config,
         timestamp,
-        len_dataset_test=len(dataloader_test.dataset),
-        test=True,
+        len_dataset_test = len(dataloader_test.dataset),
+        test = True,
     )
 
     epoch_start = 1
@@ -214,11 +208,11 @@ def main(args):
 
         if use_lr_scheduler:
             model, optimiser, ema, epoch_start, metrics, lr_scheduler = util.restore(model, metrics, ema, dirs, config,
-                                                                                     use_lr_scheduler=use_lr_scheduler)
+                                                                                     use_lr_scheduler = use_lr_scheduler)
 
         else:
             model, optimiser, ema, epoch_start, metrics = util.restore(model, metrics, ema, dirs, config,
-                                                                       use_lr_scheduler=use_lr_scheduler)
+                                                                       use_lr_scheduler = use_lr_scheduler)
 
             lr_scheduler = None
 
@@ -233,11 +227,11 @@ def main(args):
 
         if not use_lr_scheduler:
             # default
-            optimiser = torch.optim.Adam(model.parameters(), lr=config["optimisation"]["optimiser"]["learning_rate"])
+            optimiser = torch.optim.Adam(model.parameters(), lr = config["optimisation"]["optimiser"]["learning_rate"])
 
         if use_lr_scheduler:
             # paper attention is all you need
-            optimiser = torch.optim.Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-09)
+            optimiser = torch.optim.Adam(model.parameters(), betas = (0.9, 0.98), eps = 1e-09)
             lr_scheduler = util.Learning_Rate_Scheduler(config_transformer["d_model"], warmup_steps, optimiser)
 
     epoch_stop = epoch_start + config["model"]["n_epochs"]
@@ -267,8 +261,9 @@ def main(args):
                 images, correct_labels, correct_meta_labels = images.cuda(), correct_labels.cuda(), correct_meta_labels.cuda()
 
             # cast on gpu for better performance
-            images_context, images_choices, correct_labels, correct_meta_labels = PGM.cast_data(images, correct_labels,
-                                                                                                correct_meta_labels)
+            images_context, images_choices, correct_labels, correct_meta_labels = PGM_PT.cast_data(images,
+                                                                                                   correct_labels,
+                                                                                                   correct_meta_labels)
 
             logits_labels, logits_meta_labels = model(images_context, images_choices, correct_meta_labels)
 
@@ -304,9 +299,9 @@ def main(args):
                     images, correct_labels, correct_meta_labels = images.cuda(), correct_labels.cuda(), correct_meta_labels.cuda()
 
                 # cast on gpu for better performance
-                images_context, images_choices, correct_labels, correct_meta_labels = PGM.cast_data(images,
-                                                                                                    correct_labels,
-                                                                                                    correct_meta_labels)
+                images_context, images_choices, correct_labels, correct_meta_labels = PGM_PT.cast_data(images,
+                                                                                                       correct_labels,
+                                                                                                       correct_meta_labels)
 
                 logits_labels, logits_meta_labels = model(images_context, images_choices, correct_meta_labels)
 
@@ -325,7 +320,7 @@ def main(args):
             break
 
         if use_lr_decay:
-            util.check_LR(config, metrics, optimiser, epoch, thr_1=lr_decay_threshold)
+            util.check_LR(config, metrics, optimiser, epoch, thr_1 = lr_decay_threshold)
 
     if early_stopping.stop:
         # restore past model
@@ -347,9 +342,9 @@ def main(args):
                 images, correct_labels, correct_meta_labels = images.cuda(), correct_labels.cuda(), correct_meta_labels.cuda()
 
             # cast on gpu for better performance
-            images_context, images_choices, correct_labels, correct_meta_labels = PGM.cast_data(images,
-                                                                                                correct_labels,
-                                                                                                correct_meta_labels)
+            images_context, images_choices, correct_labels, correct_meta_labels = PGM_PT.cast_data(images,
+                                                                                                   correct_labels,
+                                                                                                   correct_meta_labels)
 
             logits_labels, logits_meta_labels = model(images_context, images_choices, correct_meta_labels)
 

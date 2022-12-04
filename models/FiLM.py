@@ -2,24 +2,32 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 class FiLM(nn.Module):
     """
     Implements the FiLM layer
     https://www.aaai.org/ocs/index.php/AAAI/AAAI18/paper/view/16528/16646
     """
 
-    def __init__(self, in_features, out_features, cnn_mode=False):
+    def __init__(self, in_features, out_features, cnn_mode = False):
         super(FiLM, self).__init__()
 
         self.cnn_mode = cnn_mode
 
         self.out_features = out_features
-        self.affine_transformation = nn.Linear(in_features=in_features, out_features=2 * self.out_features)
+        self.affine_transformation = nn.Linear(in_features = in_features, out_features = 2 * self.out_features)
 
     def forward(self, cond_data, cnn_activations):
         """
         this model assumes to have h_c and f_c as affine maps
         """
+
+        # TODO: Intuitively, the original way to computed FiLM-ed features is inefficient,
+        #  especially for RPM-like tasks, because each item in a single RPM-like item,
+        #  i.e., an instance in the batch, is modulated by different gamma and beta.
+        #  If FiLM works like some attention mechanism, then, within an individual RPM-like item,
+        #  attention should be paid to the same place in each panel.
+
         gamma, beta = torch.split(self.affine_transformation(cond_data), self.out_features, 1)
 
         # for cnns
@@ -49,20 +57,21 @@ class FiLMBlock(nn.Module):
     https://www.aaai.org/ocs/index.php/AAAI/AAAI18/paper/view/16528/16646
     """
 
-    def __init__(self, d_condition, in_features, out_features, cnn_mode=False, wren=False):
+    def __init__(self, d_condition, in_features, out_features, cnn_mode = True, wren = True):
         super().__init__()
 
         self.cnn_mode = cnn_mode
         self.out_features = out_features
-        self.affine_transformation = nn.Linear(in_features=d_condition, out_features=2 * out_features)
+        self.affine_transformation = nn.Linear(in_features = d_condition, out_features = 2 * out_features)
 
         if self.cnn_mode:
-            self.cnn = nn.Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=(3, 3), stride=1,
-                                 padding=1)
+            self.cnn = nn.Conv2d(in_channels = in_features, out_channels = out_features, kernel_size = (3, 3),
+                                 stride = 1,
+                                 padding = 1)
             self.batchnorm = nn.BatchNorm2d(out_features)
 
         else:
-            self.linear = nn.Linear(in_features=in_features, out_features=out_features)
+            self.linear = nn.Linear(in_features = in_features, out_features = out_features)
             self.batchnorm = nn.BatchNorm1d(out_features)
 
         if wren:

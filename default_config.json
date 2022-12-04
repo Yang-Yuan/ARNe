@@ -29,19 +29,20 @@
         }
     },
     "dataset": {
-        "npz_path": "./data/neutral/npz",
-        "pt_path": "./data/neutral/pt",
+        "data_path": "C:/statuette-data/PGM/",
+        "npz_path": "C:/statuette-data/PGM-unit8/neutral/",
+        "pt_path": "C:/statuette-data/PGM-unit8/neutral-unit8/",
         "set_train": "train",
         "set_val": "val",
         "dataloader": {
             "num_workers": 0,
             "pin_memory": true,
             "shuffle": true,
-            "batch_size": 64
+            "batch_size": 4
         }
     },
     "model": {
-        "n_epochs": 200,
+        "n_epochs": 3,
         "save": true,
         "train": true,
         "val": true
